@@ -5,333 +5,137 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cleaning App</title>
-  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
-
   <style>
-    /* --- Global Styles --- */
     body { background-color: #f0f2f5; font-family: 'Sarabun', sans-serif; padding-bottom: 80px; }
-    
-    /* Loading Overlay */
-    #loading-overlay { 
-      position: fixed; top:0; left:0; width:100%; height:100%; 
-      background:rgba(255,255,255,0.95); z-index:9999; 
-      display:flex; flex-direction:column; justify-content:center; align-items:center; 
-    }
-
-    /* --- Card Design --- */
-    .card-task {
-      border: none;
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      margin-bottom: 24px;
-      overflow: hidden;
-      background: #fff;
-    }
-    
-    .card-header-custom {
-      background-color: #fff;
-      padding: 16px 20px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-
-    .badge-dept {
-      background-color: #e3f2fd;
-      color: #0d47a1;
-      font-size: 0.8rem;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-weight: 600;
-      display: inline-block;
-      margin-top: 5px;
-    }
-
-    /* --- Image Comparison Grid --- */
-    .compare-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      padding: 15px 20px;
-      background-color: #fafafa;
-    }
-    .img-wrapper { text-align: center; }
-    .img-wrapper img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 10px;
-      border: 1px solid #e0e0e0;
-      background-color: #eee;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      cursor: pointer;
-    }
-    .img-label {
-      font-size: 0.8rem;
-      color: #555;
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
-
-    /* --- Controls & Status --- */
+    #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    .card-task { border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 24px; overflow: hidden; background: #fff; }
+    .card-header-custom { background-color: #fff; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
+    .badge-dept { background-color: #e3f2fd; color: #0d47a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px 20px; background-color: #fafafa; }
+    .img-wrapper img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; border: 1px solid #e0e0e0; }
     .control-area { padding: 20px; }
-    .msg-box { margin: 10px 0; text-align: center; font-size: 0.9rem; min-height: 24px; }
     .status-pass { color: #198754; font-weight: bold; display: none; }
     .status-fail { color: #dc3545; font-weight: bold; display: none; }
-    .form-control-file { border-radius: 8px; }
   </style>
 </head>
 <body>
-
   <div id="loading-overlay">
     <div class="spinner-border text-primary mb-3"></div>
-    <div class="text-muted fw-bold">กำลังโหลดรายการงาน...</div>
+    <div class="text-muted fw-bold">🚀 กำลังโหลด... (V4 Final)</div>
   </div>
-
   <div class="container py-4" style="max-width: 600px;">
     <h4 class="fw-bold text-center text-dark mb-4">✨ รายการทำความสะอาด</h4>
     <div id="taskList"></div>
   </div>
-
   <script>
-    // --- 1. ฟังก์ชันเริ่มต้นระบบ (เรียกทันที ไม่รอ window.onload) ---
     function startApp() {
-      console.log("🚀 System Starting...");
-      
-      // เปลี่ยนข้อความเพื่อเช็คว่า JS ทำงาน
-      const overlay = document.getElementById('loading-overlay');
-      if(overlay) {
-         overlay.innerHTML = `
-            <div class="spinner-border text-primary mb-3"></div>
-            <div class="text-muted fw-bold">กำลังติดต่อ Server...</div>
-            <div style="font-size:10px; color:#ccc; margin-top:10px;">(Connecting...)</div>
-         `;
-      }
-
-      // เรียก Server
       google.script.run
-        .withSuccessHandler((tasks) => {
-           console.log("✅ Data received:", tasks);
-           renderTasks(tasks);
-        })
-        .withFailureHandler((err) => {
-           console.error("❌ Server Error:", err);
-           showFatalError(err);
-        })
+        .withSuccessHandler(renderTasks)
+        .withFailureHandler(showFatalError)
         .getStandardsData();
     }
 
-    // --- 2. แสดงผล (UI Rendering) ---
     function renderTasks(tasks) {
       const container = document.getElementById('taskList');
-      const overlay = document.getElementById('loading-overlay');
+      document.getElementById('loading-overlay').style.display = 'none';
+      container.innerHTML = '';
 
-      try {
-        container.innerHTML = '';
-
-        if (!tasks || tasks.length === 0) {
-          container.innerHTML = '<div class="alert alert-warning text-center shadow-sm">🎉 ไม่พบรายการงาน (หรือเสร็จหมดแล้ว)</div>';
-          overlay.style.display = 'none';
-          return;
-        }
-
-        tasks.forEach((task) => {
-          // Defensive Coding: กันค่าว่าง
-          const safeDept = task.department || 'General';
-          const safeImg = task.stdImg || 'https://via.placeholder.com/300x300?text=No+Standard';
-          
-          // เช็คสถานะงาน (เสร็จแล้วหรือยัง)
-          const isDone = task.isDone; 
-          const statusBadge = isDone 
-            ? '<span class="badge bg-success float-end">✅ เสร็จแล้ว (วันนี้)</span>' 
-            : '<span class="badge bg-secondary float-end opacity-50">รอตรวจ</span>';
-          
-          const btnDisabled = isDone ? 'disabled' : '';
-          const btnText = isDone ? 'ส่งข้อมูลเรียบร้อยแล้ว' : 'บันทึกผลตรวจสอบ';
-          const btnClass = isDone ? 'btn-secondary' : 'btn-primary';
-
-          const html = `
-            <div class="card card-task">
-              <div class="card-header-custom">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <h6 class="m-0 fw-bold text-dark" style="font-size:1.1rem;">📍 ${task.location}</h6>
-                    <span class="badge-dept mt-2">🏢 ${safeDept}</span>
-                  </div>
-                  <span class="badge bg-light text-dark border shadow-sm" style="font-size: 0.9rem;">
-                    ${task.taskID}
-                  </span>
-                </div>
-                
-                <div class="mt-2 text-end">${statusBadge}</div>
-                
-                <p class="text-muted small mt-2 mb-0 border-top pt-2">
-                  📝 ${task.desc}
-                </p>
-              </div>
-
-              <div class="compare-grid">
-                <div class="img-wrapper">
-                  <div class="img-label">มาตรฐาน (Standard)</div>
-                  <img src="${safeImg}" onclick="window.open(this.src)" alt="Standard">
-                </div>
-                <div class="img-wrapper">
-                  <div class="img-label">รูปถ่ายจริง (Actual)</div>
-                  <img id="preview_${task.taskID}" src="https://via.placeholder.com/300x300?text=รอถ่ายรูป" alt="Actual">
-                </div>
-              </div>
-
-              <div class="control-area">
-                ${!isDone ? `
-                <input type="file" 
-                       id="file_${task.taskID}" 
-                       class="form-control form-control-file mb-3"
-                       accept="image/*" 
-                       capture="environment"
-                       onchange="processImage(this, '${task.taskID}')">
-                ` : ''}
-                
-                <div id="msg_${task.taskID}" class="msg-box">
-                  <span class="status-pass">✅ รูปภาพถูกต้อง (พร้อมส่ง)</span>
-                  <span class="status-fail">❌ Error</span>
-                </div>
-
-                <button type="button" 
-                        id="btn_${task.taskID}" 
-                        class="btn ${btnClass} w-100 shadow-sm" 
-                        ${btnDisabled} 
-                        onclick="submitTask('${task.taskID}', '${safeDept}')">
-                  ${btnText}
-                </button>
-              </div>
-            </div>
-          `;
-          container.insertAdjacentHTML('beforeend', html);
-        });
-
-        overlay.style.display = 'none';
-
-      } catch (err) {
-        console.error(err);
-        showFatalError("Render Error: " + err.message);
+      if (!tasks || tasks.length === 0) {
+        container.innerHTML = '<div class="alert alert-warning text-center">🎉 ไม่พบรายการงาน</div>';
+        return;
       }
+
+      tasks.forEach((task) => {
+        const safeDept = task.department || 'General';
+        const safeImg = task.stdImg || 'https://via.placeholder.com/300x300?text=No+Standard';
+        const isDone = task.isDone; 
+        const statusBadge = isDone ? '<span class="badge bg-success float-end">✅ เสร็จแล้ว</span>' : '<span class="badge bg-secondary float-end opacity-50">รอตรวจ</span>';
+        const btnDisabled = isDone ? 'disabled' : '';
+        const btnText = isDone ? 'ส่งข้อมูลเรียบร้อย' : 'บันทึก';
+        const btnClass = isDone ? 'btn-secondary' : 'btn-primary';
+
+        const html = `
+          <div class="card card-task">
+            <div class="card-header-custom">
+              <div class="d-flex justify-content-between align-items-start">
+                <div><h6 class="m-0 fw-bold text-dark">📍 ${task.location}</h6><span class="badge-dept mt-2">🏢 ${safeDept}</span></div>
+                <span class="badge bg-light text-dark border shadow-sm">${task.taskID}</span>
+              </div>
+              <div class="mt-2 text-end">${statusBadge}</div>
+              <p class="text-muted small mt-2 mb-0 border-top pt-2">📝 ${task.desc}</p>
+            </div>
+            <div class="compare-grid">
+              <div class="img-wrapper"><div style="font-size:0.8rem;margin-bottom:5px;">มาตรฐาน</div><img src="${safeImg}" onclick="window.open(this.src)"></div>
+              <div class="img-wrapper"><div style="font-size:0.8rem;margin-bottom:5px;">หน้างาน</div><img id="preview_${task.taskID}" src="https://via.placeholder.com/300x300?text=รอถ่าย"></div>
+            </div>
+            <div class="control-area">
+              ${!isDone ? `<input type="file" id="file_${task.taskID}" class="form-control mb-3" accept="image/*" capture="environment" onchange="processImage(this, '${task.taskID}')">` : ''}
+              <div id="msg_${task.taskID}" style="text-align:center;margin-bottom:10px;"><span class="status-pass">✅ OK</span><span class="status-fail">❌ Error</span></div>
+              <button type="button" id="btn_${task.taskID}" class="btn ${btnClass} w-100 shadow-sm" ${btnDisabled} onclick="submitTask('${task.taskID}', '${safeDept}')">${btnText}</button>
+            </div>
+          </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+      });
     }
 
-    // --- 3. Anti-Cheat Logic (EXIF) ---
     function processImage(input, taskID) {
       const file = input.files[0];
       const preview = document.getElementById(`preview_${taskID}`);
       const btn = document.getElementById(`btn_${taskID}`);
       const pass = document.querySelector(`#msg_${taskID} .status-pass`);
       const fail = document.querySelector(`#msg_${taskID} .status-fail`);
-
       pass.style.display = 'none'; fail.style.display = 'none'; btn.disabled = true;
 
       if (file) {
         const reader = new FileReader();
         reader.onload = (e) => preview.src = e.target.result;
         reader.readAsDataURL(file);
-
         EXIF.getData(file, function() {
           const dateTaken = EXIF.getTag(this, "DateTimeOriginal");
-          
-          if (!dateTaken) {
-            showError(taskID, "⚠️ ไม่พบเวลาในรูป (ห้ามใช้ Screenshot)");
-            return;
-          }
-
-          const [d, t] = dateTaken.split(" "); 
-          const photoDate = new Date(d.replace(/:/g, "/") + " " + t);
-          const diff = (new Date() - photoDate) / 36e5; // hours
-
-          if (diff > 24) {
-            showError(taskID, `⛔ รูปเก่าเกินไป (${diff.toFixed(1)} ชม.)`);
-          } else if (diff < -1) {
-            showError(taskID, "⛔ เวลาอนาคต (นาฬิกาผิด)");
-          } else {
-            pass.style.display = 'inline-block';
-            btn.disabled = false; // Unlock Button
-          }
+          if (!dateTaken) { showError(taskID, "⚠️ ไม่พบเวลา"); return; }
+          pass.style.display = 'inline-block'; btn.disabled = false;
         });
       }
     }
 
-    function showError(id, msg) {
-      const el = document.querySelector(`#msg_${id} .status-fail`);
-      el.innerText = msg; el.style.display = 'block';
-    }
+    function showError(id, msg) { document.querySelector(`#msg_${id} .status-fail`).innerText = msg; document.querySelector(`#msg_${id} .status-fail`).style.display = 'block'; }
 
-    // --- 4. Submit Logic (Resize & Send) ---
     function submitTask(taskID, dept) {
       const btn = document.getElementById(`btn_${taskID}`);
-      const fileInput = document.getElementById(`file_${taskID}`);
-      const file = fileInput.files[0];
-
+      const file = document.getElementById(`file_${taskID}`).files[0];
       if (!file) return;
-
-      const originalText = btn.innerHTML;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> กำลังประมวลผล...';
-      btn.disabled = true;
-
+      btn.innerHTML = 'Sending...'; btn.disabled = true;
+      
       resizeImage(file, 1024, 0.7, function(resizedBase64) {
-        google.script.run
-          .withSuccessHandler((res) => {
-            if(res.success) {
-              alert("✅ บันทึกสำเร็จ!");
-              location.reload(); 
-            } else {
-              alert("❌ " + res.message);
-              btn.innerHTML = originalText;
-              btn.disabled = false;
-            }
-          })
-          .withFailureHandler((err) => {
-            alert("Error: " + err);
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-          })
-          .saveLog({ taskID: taskID, department: dept, imageBase64: resizedBase64 });
+        google.script.run.withSuccessHandler(res => {
+          if(res.success) { alert("✅ Saved!"); location.reload(); } else { alert("❌ " + res.message); btn.disabled = false; }
+        }).saveLog({ taskID: taskID, department: dept, imageBase64: resizedBase64 });
       });
     }
 
-    // --- 5. Helper: Resize Image ---
-    function resizeImage(file, maxWidth, quality, callback) {
+    function resizeImage(file, max, qual, cb) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = function(event) {
-        const img = new Image();
-        img.src = event.target.result;
+      reader.onload = function(e) {
+        const img = new Image(); img.src = e.target.result;
         img.onload = function() {
           let w = img.width, h = img.height;
-          if (w > maxWidth) {
-            h = Math.round(h * (maxWidth / w));
-            w = maxWidth;
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          callback(canvas.toDataURL('image/jpeg', quality));
+          if (w > max) { h = Math.round(h * (max / w)); w = max; }
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          cb(c.toDataURL('image/jpeg', qual));
         };
       };
     }
 
     function showFatalError(err) {
-      const overlay = document.getElementById('loading-overlay');
-      if(overlay) {
-        overlay.innerHTML = 
-          `<div class="p-4 text-center bg-white rounded shadow border border-danger" style="max-width:80%;">
-             <h4 class="text-danger">❌ เกิดข้อผิดพลาด</h4>
-             <p class="text-muted">${err}</p>
-             <button class="btn btn-sm btn-outline-danger mt-3" onclick="location.reload()">ลองใหม่</button>
-           </div>`;
-      }
+      document.getElementById('loading-overlay').innerHTML = `<div class="p-4 text-center bg-white rounded shadow text-danger"><h4>❌ Error</h4><p>${err}</p><button class="btn btn-sm btn-outline-danger" onclick="location.reload()">Retry</button></div>`;
     }
 
-    // สั่งรันระบบทันที (บรรทัดสุดท้ายของ Script)
     startApp();
-
   </script>
 </body>
 </html>
