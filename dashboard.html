@@ -119,9 +119,14 @@
 
       rows.forEach(row => {
         const time = row.timestamp.includes(' ') ? row.timestamp.split(' ')[1] : row.timestamp;
+        // [UPDATED] เพิ่ม Location Name และจัด Task ID ให้อยู่ข้างล่าง
         tbody.innerHTML += `<tr>
           <td>${time}</td>
-          <td><span class="badge bg-info text-dark">${row.dept}</span><br><strong>${row.taskID}</strong></td>
+          <td>
+            <span class="badge bg-info text-dark">${row.dept}</span>
+            <div class="small text-muted mt-1">${row.taskID}</div>
+            <strong>${row.location}</strong>
+          </td>
           <td><div class="d-flex gap-2"><img src="${row.stdImg}" class="img-thumb" onclick="window.open(this.src)"><img src="${row.photoUrl}" class="img-thumb border-success" onclick="window.open(this.src)"></div></td>
           <td>${row.name}<br><small class="text-muted">${row.position}</small></td>
           <td><span class="text-success small">✔ Recorded</span></td>
@@ -152,7 +157,15 @@
       google.script.run.withSuccessHandler(res => {
          const list = document.getElementById('missingList');
          list.innerHTML = res.missingList.length ? '' : '<li class="list-group-item text-center text-success">ครบถ้วน!</li>';
-         res.missingList.forEach(x => list.innerHTML += `<li class="list-group-item d-flex justify-content-between"><span>${x.location}</span><span class="badge bg-danger">${x.dept}</span></li>`);
+         // [UPDATED] เพิ่ม Task ID ในวงเล็บ
+         res.missingList.forEach(x => list.innerHTML += `
+           <li class="list-group-item d-flex justify-content-between align-items-center">
+             <div>
+               <strong>${x.location}</strong>
+               <span class="ms-2 text-muted small">(${x.taskID})</span>
+             </div>
+             <span class="badge bg-danger">${x.dept}</span>
+           </li>`);
          missingModalInstance.show();
       }).getMissingReport();
     }
