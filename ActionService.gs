@@ -1,11 +1,7 @@
 /**
  * ActionService.gs
- * จัดการการบันทึกข้อมูลลง Sheet และ Drive
  */
-
 const ActionService = {
-  
-  // 1. Worker ส่งงาน
   saveLog: function(data) {
     try {
       const ss = SpreadsheetApp.openById(CONSTANTS.SPREADSHEET_ID);
@@ -33,14 +29,10 @@ const ActionService = {
         workerInfo.position,
         ''
       ]);
-
       return { success: true, message: 'บันทึกสำเร็จ' };
-    } catch (e) {
-      return { success: false, message: e.toString() };
-    }
+    } catch (e) { return { success: false, message: e.toString() }; }
   },
 
-  // 2. Manager อนุมัติรายเดือน
   approveMonthly: function(data) {
     try {
       const ss = SpreadsheetApp.openById(CONSTANTS.SPREADSHEET_ID);
@@ -67,14 +59,11 @@ const ActionService = {
         fileUrl,
         'Approved'
       ]);
-      
       return { success: true };
-    } catch (e) {
-      return { success: false, message: e.toString() };
-    }
+    } catch (e) { return { success: false, message: e.toString() }; }
   },
 
-  // (Optional) Reject Task Individual
+  approveTaskWithPhoto: function(data) { return {success:true}; }, // เผื่อไว้
   rejectTask: function(rowIndex) {
     const ss = SpreadsheetApp.openById(CONSTANTS.SPREADSHEET_ID);
     const sheet = ss.getSheetByName('Logs');
