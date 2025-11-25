@@ -12,41 +12,29 @@
 </head>
 <body>
   <div class="container-fluid mt-4">
-    
     <div class="card shadow-sm mb-4">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="mb-0 text-primary fw-bold">📊 Dashboard</h4>
-          <button class="btn btn-primary btn-sm" onclick="forceRefresh()">🔄 Refresh</button>
+          <button class="btn btn-primary btn-sm" onclick="loadData()">🔄 Refresh</button>
         </div>
-
         <div class="d-flex gap-3 align-items-end flex-wrap">
-          
           <div>
             <label class="form-label small text-muted">วันที่ดูข้อมูล</label>
             <input type="date" id="filterDate" class="form-control form-control-sm" onchange="loadData()">
           </div>
-
           <div style="min-width: 150px;">
              <label class="form-label small text-muted">แผนก</label>
-             <select id="filterDept" class="form-select form-select-sm" onchange="loadData()">
-               <option value="All">--- ทุกแผนก ---</option>
-               </select>
+             <select id="filterDept" class="form-select form-select-sm" onchange="loadData()"><option value="All">Loading...</option></select>
           </div>
-          
-          <button id="btnMissing" class="btn btn-outline-danger btn-sm d-none-custom" onclick="loadMissing()">
-            ⚠️ Check Missing (เมื่อวาน)
-          </button>
+          <button id="btnMissing" class="btn btn-outline-danger btn-sm d-none-custom" onclick="loadMissing()">⚠️ Check Missing</button>
         </div>
       </div>
     </div>
 
     <div id="monthlyBox" class="alert alert-light border shadow-sm d-none-custom mb-4">
       <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-1">📅 สถานะอนุมัติ (<span id="lblMonth">--</span>)</h5>
-          <div id="monthlyStatusText">...</div>
-        </div>
+        <div><h5 class="mb-1">📅 สถานะอนุมัติ</h5><div id="monthlyStatusText">...</div></div>
         <button id="btnMonthlyApprove" class="btn btn-success" onclick="openApproveModal()">📸 ถ่ายรูปอนุมัติ</button>
       </div>
     </div>
@@ -54,144 +42,66 @@
     <div class="card shadow-sm">
       <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Time</th>
-              <th>Task Info</th>
-              <th>Compare</th>
-              <th>Worker</th>
-              <th>Status</th>
-            </tr>
-          </thead>
+          <thead class="table-light"><tr><th>Time</th><th>Task Info</th><th>Compare</th><th>Worker</th><th>Status</th></tr></thead>
           <tbody id="logTable"></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header bg-success text-white">
-          <h5 class="modal-title">📸 ยืนยันอนุมัติประจำเดือน</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center">
-          <input type="file" id="mgrFile" accept="image/*" capture="environment" class="form-control mb-3">
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-success" onclick="confirmApprove()">✅ ยืนยัน</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="missingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header bg-danger text-white">
-          <h5 class="modal-title">⚠️ งานตกหล่น</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body"><ul id="missingList" class="list-group list-group-flush"></ul></div>
-      </div>
-    </div>
-  </div>
+  <div class="modal fade" id="approveModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-success text-white"><h5 class="modal-title">📸 ยืนยัน</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-center"><input type="file" id="mgrFile" accept="image/*" capture="environment" class="form-control"></div><div class="modal-footer"><button class="btn btn-success" onclick="confirmApprove()">✅ ยืนยัน</button></div></div></div></div>
+  <div class="modal fade" id="missingModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title">⚠️ งานตกหล่น</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><ul id="missingList" class="list-group list-group-flush"></ul></div></div></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  
   <script>
     let currentUserRole = '';
-    let approveModalInstance;
-    let missingModalInstance;
+    let approveModalInstance, missingModalInstance;
 
     window.onload = function() {
-      // 1. ตั้งค่า Default วันที่ (เฉพาะครั้งแรก)
-      const now = new Date();
-      document.getElementById('filterDate').value = now.toISOString().split('T')[0];
-
-      // 2. โหลดรายชื่อแผนกใส่ Dropdown
-      google.script.run.withSuccessHandler(populateDept).getAllDepartments();
-
-      // 3. Init Modals
+      document.getElementById('filterDate').value = new Date().toISOString().split('T')[0];
       approveModalInstance = new bootstrap.Modal(document.getElementById('approveModal'));
       missingModalInstance = new bootstrap.Modal(document.getElementById('missingModal'));
       
-      loadData();
-    }
-
-    function populateDept(depts) {
-      const select = document.getElementById('filterDept');
-      depts.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.innerText = d;
-        select.appendChild(opt);
-      });
-    }
-
-    // [FIX ข้อ 1] ปุ่ม Refresh จะไม่ Reset วันที่แล้ว
-    function forceRefresh() {
+      google.script.run.withSuccessHandler(depts => {
+        const sel = document.getElementById('filterDept');
+        sel.innerHTML = '<option value="All">--- ทุกแผนก ---</option>';
+        depts.forEach(d => sel.innerHTML += `<option value="${d}">${d}</option>`);
         loadData();
+      }).getAllDepartments();
     }
 
-   function loadData() {
+    function loadData() {
       const date = document.getElementById('filterDate').value;
-      const deptEl = document.getElementById('filterDept');
-      const dept = deptEl ? deptEl.value : 'All'; 
-
-      // --- 🔍 LOG 1: ดูค่าฝั่งหน้าบ้าน ---
-      console.log("🚀 CLIENT START");
-      console.log("1. Date Value:", date);
-      console.log("2. Dept Value (จาก Dropdown):", dept);
-      console.log("3. กำลังส่งไปหา Server...");
-      // --------------------------------
-
-      document.getElementById('logTable').innerHTML = '<tr><td colspan="5" class="text-center p-4">Loading data...</td></tr>';
-      
-      google.script.run
-        .withSuccessHandler((res) => {
-           console.log("✅ CLIENT SUCCESS: ได้รับข้อมูลกลับมาแล้ว", res); // ดูว่า Server ส่งอะไรกลับมา
-           renderDashboard(res);
-        })
-        .withFailureHandler(err => {
-           console.error("❌ CLIENT ERROR:", err);
-           document.getElementById('logTable').innerHTML = `Error: ${err}`;
-        })
-        .getDashboardData(date, dept); 
+      const dept = document.getElementById('filterDept') ? document.getElementById('filterDept').value : 'All';
+      document.getElementById('logTable').innerHTML = '<tr><td colspan="5" class="text-center p-4">Loading...</td></tr>';
+      google.script.run.withSuccessHandler(renderDashboard).getDashboardData(date, dept);
     }
 
     function renderDashboard(data) {
-      const rows = data.rows;
       currentUserRole = data.viewerRole;
+      const rows = data.rows;
       const mStatus = data.monthlyStatus;
 
-      // --- UI Permission ---
       const btnMissing = document.getElementById('btnMissing');
       const monthlyBox = document.getElementById('monthlyBox');
       const deptFilter = document.getElementById('filterDept');
 
-      // QA Logic
+      // QA
       if (currentUserRole === 'QA') {
         btnMissing.classList.remove('d-none-custom');
-        deptFilter.disabled = false; // QA เลือกแผนกได้
+        deptFilter.disabled = false;
       } else {
         btnMissing.classList.add('d-none-custom');
       }
-      
-      // Manager Logic
+
+      // Manager
       if (currentUserRole === 'Manager') {
         monthlyBox.classList.remove('d-none-custom');
-        // Manager เลือกแผนกไม่ได้ (ล็อกไว้ที่ All หรือแผนกตัวเองตาม Logic Server)
-        // เพื่อความเนียน: เราอาจจะ Disable dropdown หรือ ซ่อนไปเลย
-        deptFilter.value = data.viewerDept; // เซ็ตค่าให้ตรง
-        deptFilter.disabled = true; // ล็อก
+        deptFilter.value = data.viewerDept || 'All';
+        deptFilter.disabled = true;
 
-        // Setup Box
-        document.getElementById('lblMonth').innerText = document.getElementById('filterDate').value.slice(0, 7) || 'All Time';
         const btnApprove = document.getElementById('btnMonthlyApprove');
         const txtStatus = document.getElementById('monthlyStatusText');
-
         if (mStatus.isApproved) {
           btnApprove.style.display = 'none';
           txtStatus.innerHTML = `<span class="badge bg-success">✅ อนุมัติแล้ว</span> <a href="${mStatus.mgrPhoto}" target="_blank">รูป</a>`;
@@ -203,46 +113,28 @@
         monthlyBox.classList.add('d-none-custom');
       }
 
-      // --- Render Table ---
       const tbody = document.getElementById('logTable');
       tbody.innerHTML = '';
-
-      if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted p-4">ไม่พบข้อมูล</td></tr>';
-        return;
-      }
+      if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted p-4">ไม่พบข้อมูล</td></tr>'; return; }
 
       rows.forEach(row => {
         const time = row.timestamp.includes(' ') ? row.timestamp.split(' ')[1] : row.timestamp;
-        const html = `
-          <tr>
-            <td>${time}</td>
-            <td>
-              <span class="badge bg-info text-dark">${row.dept}</span><br>
-              <strong>${row.taskID}</strong>
-            </td>
-            <td>
-              <div class="d-flex gap-2">
-                <div class="text-center"><img src="${row.stdImg}" class="img-thumb" onclick="window.open(this.src)"></div>
-                <div class="text-center"><img src="${row.photoUrl}" class="img-thumb border-success" onclick="window.open(this.src)"></div>
-              </div>
-            </td>
-            <td>${row.name}<br><small class="text-muted">${row.position}</small></td>
-            <td><span class="text-success small">✔ Recorded</span></td>
-          </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', html);
+        tbody.innerHTML += `<tr>
+          <td>${time}</td>
+          <td><span class="badge bg-info text-dark">${row.dept}</span><br><strong>${row.taskID}</strong></td>
+          <td><div class="d-flex gap-2"><img src="${row.stdImg}" class="img-thumb" onclick="window.open(this.src)"><img src="${row.photoUrl}" class="img-thumb border-success" onclick="window.open(this.src)"></div></td>
+          <td>${row.name}<br><small class="text-muted">${row.position}</small></td>
+          <td><span class="text-success small">✔ Recorded</span></td>
+        </tr>`;
       });
     }
 
-    // (Code Modal Approve / Missing คงเดิม ... Copy จากอันเก่าได้เลยครับ)
     function openApproveModal() { document.getElementById('mgrFile').value = ''; approveModalInstance.show(); }
-    
     function confirmApprove() {
        const file = document.getElementById('mgrFile').files[0];
-       if(!file) return alert("Please take a photo");
+       if(!file) return alert("ต้องถ่ายรูป");
        const dateVal = document.getElementById('filterDate').value;
-       if(!dateVal) return alert("Please select a date first");
+       const deptVal = document.getElementById('filterDept').value;
        
        const reader = new FileReader();
        reader.readAsDataURL(file);
@@ -251,14 +143,7 @@
          img.onload = () => {
             const c=document.createElement('canvas'); const max=800; let w=img.width,h=img.height;
             if(w>max){h*=max/w;w=max;} c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
-            
-            // ส่ง filterDept ไปด้วยถ้าเป็น QA แต่ปกติ Manager จะถูกล็อก Dept ไว้แล้วที่ Server
-            // เราส่ง dept กลับไปจากตัวแปร global หรือ server session ก็ได้
-            // เพื่อความง่าย Manager อนุมัติแผนกตัวเองเสมอ
-            
-            google.script.run.withSuccessHandler(()=>{ 
-               alert("Approved!"); approveModalInstance.hide(); loadData(); 
-            }).approveMonthly({ month: dateVal.slice(0,7), dept: document.getElementById('filterDept').value, imageBase64: c.toDataURL('image/jpeg',0.7) });
+            google.script.run.withSuccessHandler(()=>{ alert("Approved!"); approveModalInstance.hide(); loadData(); }).approveMonthly({ month: dateVal.slice(0,7), dept: deptVal, imageBase64: c.toDataURL('image/jpeg',0.7) });
          }
        }
     }
@@ -267,7 +152,7 @@
       google.script.run.withSuccessHandler(res => {
          const list = document.getElementById('missingList');
          list.innerHTML = res.missingList.length ? '' : '<li class="list-group-item text-center text-success">ครบถ้วน!</li>';
-         res.missingList.forEach(x => list.insertAdjacentHTML('beforeend', `<li class="list-group-item d-flex justify-content-between"><span>${x.location}</span><span class="badge bg-danger">${x.dept}</span></li>`));
+         res.missingList.forEach(x => list.innerHTML += `<li class="list-group-item d-flex justify-content-between"><span>${x.location}</span><span class="badge bg-danger">${x.dept}</span></li>`);
          missingModalInstance.show();
       }).getMissingReport();
     }
