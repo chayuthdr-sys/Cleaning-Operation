@@ -1,12 +1,11 @@
 /**
- * Code.gs (All-in-One Robust Version)
- * รวม Logic ทั้งหมดไว้ที่นี่เพื่อกำจัดความเสี่ยงเรื่อง File Loading Order และ Scope
+ * Code.gs (All-in-One Robust Version + Check Done Tasks)
  */
 
 // --- 1. CONFIGURATION ---
 const CONSTANTS = {
-  SPREADSHEET_ID: '1Dik3JJzJrqoQdal_ytjADDxsdqgnomQaCx5NGaAfXxE',
-  FOLDER_ID: '11AetQBzDhQDvjnNwBy1c8gEkd5nT0C-s'
+  SPREADSHEET_ID: '1Dik3JJzJrqoQdal_ytjADDxsdqgnomQaCx5NGaAfXxE', // ตรวจสอบ ID ให้ถูกต้อง
+  FOLDER_ID: '11AetQBzDhQDvjnNwBy1c8gEkd5nT0C-s'     // ตรวจสอบ ID ให้ถูกต้อง
 };
 
 // --- 2. ROUTING ---
@@ -14,10 +13,9 @@ function doGet(e) {
   let userEmail = "unknown";
   try { userEmail = Session.getActiveUser().getEmail(); } catch(e) {}
   
-  // เรียกฟังก์ชันภายในไฟล์เดียวกัน ตัดปัญหา Cross-file
   const role = getUserRole(userEmail);
 
-  let templateName = 'error'; 
+  let templateName = 'error';
   if (role === 'Worker') templateName = 'worker';
   else if (role === 'Manager' || role === 'QA') templateName = 'dashboard';
   else return HtmlService.createHtmlOutput(`<div style="text-align:center;margin-top:50px;"><h3>⛔ Access Denied</h3><p>${userEmail} ไม่มีสิทธิ์ใช้งาน</p></div>`);
@@ -29,7 +27,7 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// --- 3. CORE LOGIC (ย้ายจาก DataService/ActionService มาไว้ที่นี่) ---
+// --- 3. CORE LOGIC ---
 
 function getUserRole(email) {
   try {
@@ -59,63 +57,88 @@ function getUserDetails(email) {
   return info;
 }
 
-// 🔥 ฟังก์ชันหลัก Worker (แก้ความเสี่ยงเรื่องวันที่และ Type)
-// --- Code.gs (แทนที่เฉพาะฟังก์ชัน getStandardsData) ---
-
 /**
- * ฟังก์ชันดึงงาน Worker (เวอร์ชัน Simple & Safe)
- * - ตัดการเช็ค Logs (วันที่) ออก เพื่อป้องกัน Error
- * - เน้นดึงรายการงานออกมาให้ได้ก่อน
+ * ฟังก์ชันดึงงาน Worker (Update: เพิ่มการเช็คงานที่ทำเสร็จแล้วในวันนี้)
  */
 function getStandardsData() {
   try {
     // 1. ดึงข้อมูล User
     const userEmail = Session.getActiveUser().getEmail();
-    
-    // เรียกใช้ Helper เดิมที่มีอยู่ (ถ้าหาไม่เจอ ให้กำหนดค่า Default ไปเลย กันตาย)
     let userDept = 'All';
     try {
-       const uInfo = getUserDetails(userEmail); // เรียกฟังก์ชันในไฟล์เดียวกัน
+       const uInfo = getUserDetails(userEmail);
        userDept = uInfo.dept || 'All';
     } catch(e) {
        console.warn("User Details Error:", e);
     }
 
-    // 2. ดึงข้อมูล Standards
     const ss = SpreadsheetApp.openById(CONSTANTS.SPREADSHEET_ID);
+
+    // --- ส่วนที่เพิ่มใหม่: ตรวจสอบ Logs ของวันนี้ ---
+    const logSheet = ss.getSheetByName('Logs');
+    const doneSet = new Set(); // เก็บ TaskID ที่ทำเสร็จแล้ว
+    
+    if (logSheet) {
+      const logData = logSheet.getDataRange().getValues();
+      // หาวันที่ปัจจุบัน (Timezone ไทย)
+      const today = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+
+      // วนลูปเช็ค Logs (เริ่มแถวที่ 1 เพื่อข้าม Header)
+      for (let i = 1; i < logData.length; i++) {
+        const row = logData[i];
+        const timestamp = row[0];
+        const taskID = String(row[1]);
+        const workerEmail = String(row[3]);
+
+        // เช็คว่า User ตรงกัน และ วันที่ตรงกัน หรือไม่
+        if (workerEmail === userEmail && timestamp) {
+          try {
+             // แปลง Timestamp ใน Log ให้เป็นวันที่เพื่อเปรียบเทียบ
+             const logDate = Utilities.formatDate(new Date(timestamp), "GMT+7", "yyyy-MM-dd");
+             if (logDate === today) {
+               doneSet.add(taskID);
+             }
+          } catch (err) {
+             // ข้ามกรณี Date format ผิดพลาด
+          }
+        }
+      }
+    }
+    // ---------------------------------------------
+
+    // 2. ดึงข้อมูล Standards
     const sheet = ss.getSheetByName('Standards');
     if (!sheet) throw new Error("ไม่พบ Sheet Standards");
 
     const data = sheet.getDataRange().getValues();
     data.shift(); // ตัด Header
 
-    // 3. กรองข้อมูลแบบง่าย (Simple Filter)
+    // 3. กรองข้อมูล
     const tasks = [];
     const cleanUserDept = String(userDept).trim();
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
+      const tID = String(row[0]);
       const rowDept = String(row[4] || '').trim(); // Col E: Department
 
       // เงื่อนไข: ถ้า User เป็น All หรือ แผนกตรงกัน -> ให้แสดง
       if (cleanUserDept === 'All' || cleanUserDept === rowDept) {
         tasks.push({
-          taskID: String(row[0]),
+          taskID: tID,
           location: String(row[1]),
           desc: String(row[2]),
           stdImg: String(row[3]),
           department: rowDept,
-          isDone: false // ⚠️ Hardcode ไว้ก่อนว่ายังไม่เสร็จ (เพื่อให้โหลดหน้าเว็บได้ชัวร์ๆ)
+          isDone: doneSet.has(tID) // ส่งสถานะว่าเสร็จหรือยังไปด้วย
         });
       }
     }
 
-    console.log(`Simple Worker Load: ${tasks.length} tasks for ${userEmail}`);
+    console.log(`Worker Load: ${tasks.length} tasks for ${userEmail}`);
     return tasks;
-
   } catch (err) {
-    // ส่ง Error กลับไปหน้าบ้านตรงๆ
-    throw new Error("Server Simple Error: " + err.toString());
+    throw new Error("Server Error: " + err.toString());
   }
 }
 
@@ -140,14 +163,13 @@ function saveLog(data) {
 function getAllDepartments() {
   const ss = SpreadsheetApp.openById(CONSTANTS.SPREADSHEET_ID);
   const data = ss.getSheetByName('Standards').getDataRange().getValues();
-  data.shift(); 
+  data.shift();
   const depts = new Set();
   data.forEach(row => { if(row[4]) depts.add(String(row[4]).trim()); });
   return Array.from(depts).sort();
 }
 
 function getDashboardData(filterDate, filterDept) {
-  // (Logic เดิม แต่ย้ายมารวมที่นี่)
   const userEmail = Session.getActiveUser().getEmail();
   const role = getUserRole(userEmail);
   const userInfo = getUserDetails(userEmail);
@@ -162,8 +184,7 @@ function getDashboardData(filterDate, filterDept) {
   logData.shift();
   
   let result = logData;
-
-  // Filter Date (Robust)
+  // Filter Date
   if (filterDate) {
     result = result.filter(row => {
       if (!row[0]) return false;
@@ -196,7 +217,8 @@ function getDashboardData(filterDate, filterDept) {
      if (cleanTarget !== 'All') {
        for(let i=1; i<mData.length; i++) {
          if (String(mData[i][1]).trim() === sMonth && String(mData[i][2]).trim() === cleanTarget) {
-            isApproved = true; mgrPhoto = mData[i][4]; break;
+            isApproved = true;
+            mgrPhoto = mData[i][4]; break;
          }
        }
      }
@@ -205,7 +227,6 @@ function getDashboardData(filterDate, filterDept) {
   const rows = result.map((row, index) => ({
     timestamp: row[0], taskID: row[1], photoUrl: row[2], worker: row[3], status: row[4], dept: row[5], name: row[6], position: row[7], stdImg: stdMap[row[1]] || ''
   })).reverse();
-
   return { rows: rows, viewerRole: role, viewerDept: userDept, monthlyStatus: { isApproved: isApproved, mgrPhoto: mgrPhoto } };
 }
 
@@ -214,7 +235,6 @@ function getMissingReport(checkDate) {
   const stdData = ss.getSheetByName('Standards').getDataRange().getValues();
   stdData.shift();
   const logs = ss.getSheetByName('Logs').getDataRange().getValues();
-  
   let targetDate = checkDate;
   if (!targetDate) {
     const y = new Date(); y.setDate(y.getDate() - 1);
