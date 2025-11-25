@@ -4,138 +4,192 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cleaning App</title>
+  <title>Worker App (Time Check)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+  
   <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
   <style>
-    body { background-color: #f0f2f5; font-family: 'Sarabun', sans-serif; padding-bottom: 80px; }
-    #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; }
-    .card-task { border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 24px; overflow: hidden; background: #fff; }
-    .card-header-custom { background-color: #fff; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
-    .badge-dept { background-color: #e3f2fd; color: #0d47a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
-    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px 20px; background-color: #fafafa; }
-    .img-wrapper img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; border: 1px solid #e0e0e0; }
-    .control-area { padding: 20px; }
-    .status-pass { color: #198754; font-weight: bold; display: none; }
-    .status-fail { color: #dc3545; font-weight: bold; display: none; }
+    body { background-color: #f0f2f5; font-family: 'Sarabun', sans-serif; padding-bottom: 60px; }
+    .card-task { border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; background: white; }
+    .img-preview { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; background: #eee; }
+    #loader { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:999; display:flex; justify-content:center; align-items:center; flex-direction: column; }
+    
+    /* Status Text Styles */
+    .status-pass { color: #198754; font-size: 0.85rem; font-weight: bold; display: none; margin-top: 5px; text-align: center;}
+    .status-fail { color: #dc3545; font-size: 0.85rem; font-weight: bold; display: none; margin-top: 5px; text-align: center;}
   </style>
 </head>
 <body>
-  <div id="loading-overlay">
-    <div class="spinner-border text-primary mb-3"></div>
-    <div class="text-muted fw-bold">🚀 กำลังโหลด... (V4 Final)</div>
+
+  <div id="loader">
+    <div class="spinner-border text-primary mb-2"></div>
+    <div class="fw-bold text-muted">กำลังโหลดข้อมูล...</div>
   </div>
+
   <div class="container py-4" style="max-width: 600px;">
-    <h4 class="fw-bold text-center text-dark mb-4">✨ รายการทำความสะอาด</h4>
-    <div id="taskList"></div>
+    <h4 class="text-center fw-bold mb-4">✨ รายการงาน (เช็คเวลา 6 ชม.)</h4>
+    <div id="app-content"></div>
   </div>
+
   <script>
-    function startApp() {
+    window.onload = function() {
+      loadData();
+    };
+
+    function loadData() {
       google.script.run
-        .withSuccessHandler(renderTasks)
-        .withFailureHandler(showFatalError)
+        .withSuccessHandler(renderList)
+        .withFailureHandler(showError)
         .getStandardsData();
     }
 
-    function renderTasks(tasks) {
-      const container = document.getElementById('taskList');
-      document.getElementById('loading-overlay').style.display = 'none';
+    function renderList(tasks) {
+      const container = document.getElementById('app-content');
+      document.getElementById('loader').style.display = 'none';
       container.innerHTML = '';
 
       if (!tasks || tasks.length === 0) {
-        container.innerHTML = '<div class="alert alert-warning text-center">🎉 ไม่พบรายการงาน</div>';
+        container.innerHTML = '<div class="alert alert-warning text-center">ไม่พบงานในระบบ</div>';
         return;
       }
 
-      tasks.forEach((task) => {
-        const safeDept = task.department || 'General';
-        const safeImg = task.stdImg || 'https://via.placeholder.com/300x300?text=No+Standard';
-        const isDone = task.isDone; 
-        const statusBadge = isDone ? '<span class="badge bg-success float-end">✅ เสร็จแล้ว</span>' : '<span class="badge bg-secondary float-end opacity-50">รอตรวจ</span>';
-        const btnDisabled = isDone ? 'disabled' : '';
-        const btnText = isDone ? 'ส่งข้อมูลเรียบร้อย' : 'บันทึก';
-        const btnClass = isDone ? 'btn-secondary' : 'btn-primary';
-
+      tasks.forEach(task => {
+        // ปุ่มจะถูก disable ไว้ก่อน จนกว่ารูปจะผ่านเกณฑ์
         const html = `
-          <div class="card card-task">
-            <div class="card-header-custom">
-              <div class="d-flex justify-content-between align-items-start">
-                <div><h6 class="m-0 fw-bold text-dark">📍 ${task.location}</h6><span class="badge-dept mt-2">🏢 ${safeDept}</span></div>
-                <span class="badge bg-light text-dark border shadow-sm">${task.taskID}</span>
+          <div class="card card-task p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <h6 class="m-0 fw-bold">${task.location}</h6>
+                <span class="badge bg-info text-dark mt-1">${task.department}</span>
               </div>
-              <div class="mt-2 text-end">${statusBadge}</div>
-              <p class="text-muted small mt-2 mb-0 border-top pt-2">📝 ${task.desc}</p>
+              <span class="badge bg-light text-dark border">${task.taskID}</span>
             </div>
-            <div class="compare-grid">
-              <div class="img-wrapper"><div style="font-size:0.8rem;margin-bottom:5px;">มาตรฐาน</div><img src="${safeImg}" onclick="window.open(this.src)"></div>
-              <div class="img-wrapper"><div style="font-size:0.8rem;margin-bottom:5px;">หน้างาน</div><img id="preview_${task.taskID}" src="https://via.placeholder.com/300x300?text=รอถ่าย"></div>
+            
+            <div class="row g-2 mb-3">
+              <div class="col-6 text-center">
+                <small class="d-block mb-1">ตัวอย่าง</small>
+                <img src="${task.stdImg}" class="img-preview" onclick="window.open(this.src)">
+              </div>
+              <div class="col-6 text-center">
+                <small class="d-block mb-1">ถ่ายจริง</small>
+                <img id="preview_${task.taskID}" src="https://via.placeholder.com/300x200?text=Camera" class="img-preview">
+              </div>
             </div>
-            <div class="control-area">
-              ${!isDone ? `<input type="file" id="file_${task.taskID}" class="form-control mb-3" accept="image/*" capture="environment" onchange="processImage(this, '${task.taskID}')">` : ''}
-              <div id="msg_${task.taskID}" style="text-align:center;margin-bottom:10px;"><span class="status-pass">✅ OK</span><span class="status-fail">❌ Error</span></div>
-              <button type="button" id="btn_${task.taskID}" class="btn ${btnClass} w-100 shadow-sm" ${btnDisabled} onclick="submitTask('${task.taskID}', '${safeDept}')">${btnText}</button>
+
+            <input type="file" id="file_${task.taskID}" class="form-control mb-2" accept="image/*" capture="environment" onchange="handleFile(this, '${task.taskID}')">
+            
+            <div id="msg_${task.taskID}">
+               <div class="status-pass">✅ รูปภาพถูกต้อง (ถ่ายใหม่)</div>
+               <div class="status-fail">❌ Error</div>
             </div>
-          </div>`;
+
+            <button id="btn_${task.taskID}" class="btn btn-primary w-100 mt-2" disabled onclick="sendData('${task.taskID}', '${task.department}')">
+              บันทึก
+            </button>
+          </div>
+        `;
         container.insertAdjacentHTML('beforeend', html);
       });
     }
 
-    function processImage(input, taskID) {
+    // --- ฟังก์ชันตรวจสอบรูป (เพิ่ม Logic 6 ชั่วโมง) ---
+    function handleFile(input, id) {
       const file = input.files[0];
-      const preview = document.getElementById(`preview_${taskID}`);
-      const btn = document.getElementById(`btn_${taskID}`);
-      const pass = document.querySelector(`#msg_${taskID} .status-pass`);
-      const fail = document.querySelector(`#msg_${taskID} .status-fail`);
-      pass.style.display = 'none'; fail.style.display = 'none'; btn.disabled = true;
+      const preview = document.getElementById('preview_' + id);
+      const btn = document.getElementById('btn_' + id);
+      const passMsg = document.querySelector(`#msg_${id} .status-pass`);
+      const failMsg = document.querySelector(`#msg_${id} .status-fail`);
 
-      if (file) {
+      // Reset UI
+      passMsg.style.display = 'none';
+      failMsg.style.display = 'none';
+      btn.disabled = true;
+
+      if(file) {
+        // 1. แสดงรูป Preview
         const reader = new FileReader();
-        reader.onload = (e) => preview.src = e.target.result;
+        reader.onload = e => preview.src = e.target.result;
         reader.readAsDataURL(file);
+
+        // 2. อ่านค่า EXIF เพื่อเช็คเวลา
         EXIF.getData(file, function() {
           const dateTaken = EXIF.getTag(this, "DateTimeOriginal");
-          if (!dateTaken) { showError(taskID, "⚠️ ไม่พบเวลา"); return; }
-          pass.style.display = 'inline-block'; btn.disabled = false;
+          
+          // ถ้าไม่มีข้อมูลเวลา (เช่น รูปแคปหน้าจอ, รูปโหลดเน็ต, หรือแต่งรูปมา)
+          if (!dateTaken) {
+            failMsg.innerText = "⚠️ ไม่พบเวลาถ่ายภาพ (ห้ามใช้รูป Screenshot/Line)";
+            failMsg.style.display = 'block';
+            return; 
+          }
+
+          // แปลงวันที่จาก EXIF (Format: "YYYY:MM:DD HH:MM:SS")
+          const str = dateTaken.split(" ");
+          const dateStr = str[0].replace(/:/g, "/");
+          const timeStr = str[1];
+          
+          const photoDate = new Date(dateStr + " " + timeStr);
+          const now = new Date();
+          
+          // คำนวณความต่างเวลา (หน่วย: ชั่วโมง)
+          const diffHours = (now - photoDate) / (1000 * 60 * 60);
+
+          console.log(`Task ${id}: Diff ${diffHours.toFixed(2)} hrs`);
+
+          // --- เงื่อนไข: ห้ามเกิน 6 ชั่วโมง ---
+          if (diffHours > 6) {
+             failMsg.innerText = `⛔ รูปเก่าเกินไป (${diffHours.toFixed(1)} ชม.) ห้ามเกิน 6 ชม.`;
+             failMsg.style.display = 'block';
+          } else if (diffHours < -1) {
+             failMsg.innerText = "⛔ เวลาไม่ถูกต้อง (รูปจากอนาคต?)";
+             failMsg.style.display = 'block';
+          } else {
+             // ผ่านเงื่อนไข
+             passMsg.style.display = 'block';
+             btn.disabled = false; // ปลดล็อกปุ่มบันทึก
+          }
         });
       }
     }
 
-    function showError(id, msg) { document.querySelector(`#msg_${id} .status-fail`).innerText = msg; document.querySelector(`#msg_${id} .status-fail`).style.display = 'block'; }
-
-    function submitTask(taskID, dept) {
-      const btn = document.getElementById(`btn_${taskID}`);
-      const file = document.getElementById(`file_${taskID}`).files[0];
-      if (!file) return;
-      btn.innerHTML = 'Sending...'; btn.disabled = true;
+    function sendData(id, dept) {
+      const btn = document.getElementById('btn_'+id);
+      const file = document.getElementById('file_'+id).files[0];
       
-      resizeImage(file, 1024, 0.7, function(resizedBase64) {
-        google.script.run.withSuccessHandler(res => {
-          if(res.success) { alert("✅ Saved!"); location.reload(); } else { alert("❌ " + res.message); btn.disabled = false; }
-        }).saveLog({ taskID: taskID, department: dept, imageBase64: resizedBase64 });
-      });
-    }
+      btn.innerText = 'กำลังส่ง...';
+      btn.disabled = true;
 
-    function resizeImage(file, max, qual, cb) {
+      // Resize Basic
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = function(e) {
-        const img = new Image(); img.src = e.target.result;
-        img.onload = function() {
-          let w = img.width, h = img.height;
-          if (w > max) { h = Math.round(h * (max / w)); w = max; }
-          const c = document.createElement('canvas'); c.width = w; c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
-          cb(c.toDataURL('image/jpeg', qual));
-        };
-      };
+      reader.onload = e => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const cvs = document.createElement('canvas');
+          const scale = 800 / img.width;
+          cvs.width = 800; 
+          cvs.height = img.height * scale;
+          cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
+          
+          google.script.run.withSuccessHandler(() => {
+             alert('✅ บันทึกสำเร็จ');
+             btn.innerText = 'เสร็จแล้ว';
+             btn.classList.replace('btn-primary', 'btn-success');
+          }).saveLog({
+             taskID: id,
+             department: dept,
+             imageBase64: cvs.toDataURL('image/jpeg', 0.6)
+          });
+        }
+      }
     }
 
-    function showFatalError(err) {
-      document.getElementById('loading-overlay').innerHTML = `<div class="p-4 text-center bg-white rounded shadow text-danger"><h4>❌ Error</h4><p>${err}</p><button class="btn btn-sm btn-outline-danger" onclick="location.reload()">Retry</button></div>`;
+    function showError(e) {
+      alert("Error: " + e);
+      document.getElementById('loader').innerHTML = `<div class="text-danger p-3">❌ ${e}</div>`;
     }
-
-    startApp();
   </script>
 </body>
 </html>
