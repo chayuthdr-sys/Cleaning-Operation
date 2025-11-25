@@ -56,13 +56,27 @@
       }
 
       tasks.forEach(task => {
-        // ปุ่มจะถูก disable ไว้ก่อน จนกว่ารูปจะผ่านเกณฑ์
+        // ตรวจสอบสถานะ isDone
+        const isDone = task.isDone;
+        
+        // กำหนด Class และ Text ของปุ่มตามสถานะ
+        const btnClass = isDone ? 'btn-success' : 'btn-primary';
+        const btnText = isDone ? '✅ ส่งงานเรียบร้อยแล้ว' : 'บันทึก';
+        // ถ้าเสร็จแล้ว ให้ disable ปุ่ม
+        const btnDisabled = isDone ? 'disabled' : 'disabled'; // (เริ่มต้น disable รอรูปถ่าย)
+        // ถ้าเสร็จแล้ว ซ่อน input file
+        const inputDisplay = isDone ? 'display:none;' : '';
+        // ตกแต่ง Card ถ้าเสร็จแล้ว
+        const cardClass = isDone ? 'border-success' : '';
+        const bgClass = isDone ? 'bg-opacity-10 bg-success' : 'bg-white';
+
         const html = `
-          <div class="card card-task p-3">
+          <div class="card card-task p-3 ${cardClass} ${bgClass}">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="m-0 fw-bold">${task.location}</h6>
                 <span class="badge bg-info text-dark mt-1">${task.department}</span>
+                ${isDone ? '<span class="badge bg-success mt-1">เสร็จแล้ว</span>' : ''}
               </div>
               <span class="badge bg-light text-dark border">${task.taskID}</span>
             </div>
@@ -72,21 +86,25 @@
                 <small class="d-block mb-1">ตัวอย่าง</small>
                 <img src="${task.stdImg}" class="img-preview" onclick="window.open(this.src)">
               </div>
+              
+              ${!isDone ? `
               <div class="col-6 text-center">
                 <small class="d-block mb-1">ถ่ายจริง</small>
                 <img id="preview_${task.taskID}" src="https://via.placeholder.com/300x200?text=Camera" class="img-preview">
               </div>
+              ` : ''}
             </div>
 
-            <input type="file" id="file_${task.taskID}" class="form-control mb-2" accept="image/*" capture="environment" onchange="handleFile(this, '${task.taskID}')">
+            <input type="file" id="file_${task.taskID}" class="form-control mb-2" accept="image/*" capture="environment" 
+                   onchange="handleFile(this, '${task.taskID}')" style="${inputDisplay}">
             
             <div id="msg_${task.taskID}">
                <div class="status-pass">✅ รูปภาพถูกต้อง (ถ่ายใหม่)</div>
                <div class="status-fail">❌ Error</div>
             </div>
 
-            <button id="btn_${task.taskID}" class="btn btn-primary w-100 mt-2" disabled onclick="sendData('${task.taskID}', '${task.department}')">
-              บันทึก
+            <button id="btn_${task.taskID}" class="btn ${btnClass} w-100 mt-2" ${btnDisabled} onclick="sendData('${task.taskID}', '${task.department}')">
+              ${btnText}
             </button>
           </div>
         `;
@@ -94,7 +112,7 @@
       });
     }
 
-    // --- ฟังก์ชันตรวจสอบรูป (เพิ่ม Logic 6 ชั่วโมง) ---
+    // --- ฟังก์ชันตรวจสอบรูป (Logic 6 ชั่วโมง) ---
     function handleFile(input, id) {
       const file = input.files[0];
       const preview = document.getElementById('preview_' + id);
@@ -117,7 +135,6 @@
         EXIF.getData(file, function() {
           const dateTaken = EXIF.getTag(this, "DateTimeOriginal");
           
-          // ถ้าไม่มีข้อมูลเวลา (เช่น รูปแคปหน้าจอ, รูปโหลดเน็ต, หรือแต่งรูปมา)
           if (!dateTaken) {
             failMsg.innerText = "⚠️ ไม่พบเวลาถ่ายภาพ (ห้ามใช้รูป Screenshot/Line)";
             failMsg.style.display = 'block';
@@ -137,7 +154,6 @@
 
           console.log(`Task ${id}: Diff ${diffHours.toFixed(2)} hrs`);
 
-          // --- เงื่อนไข: ห้ามเกิน 6 ชั่วโมง ---
           if (diffHours > 6) {
              failMsg.innerText = `⛔ รูปเก่าเกินไป (${diffHours.toFixed(1)} ชม.) ห้ามเกิน 6 ชม.`;
              failMsg.style.display = 'block';
@@ -145,9 +161,8 @@
              failMsg.innerText = "⛔ เวลาไม่ถูกต้อง (รูปจากอนาคต?)";
              failMsg.style.display = 'block';
           } else {
-             // ผ่านเงื่อนไข
              passMsg.style.display = 'block';
-             btn.disabled = false; // ปลดล็อกปุ่มบันทึก
+             btn.disabled = false; // ปลดล็อกปุ่ม
           }
         });
       }
@@ -160,7 +175,6 @@
       btn.innerText = 'กำลังส่ง...';
       btn.disabled = true;
 
-      // Resize Basic
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = e => {
@@ -175,8 +189,11 @@
           
           google.script.run.withSuccessHandler(() => {
              alert('✅ บันทึกสำเร็จ');
-             btn.innerText = 'เสร็จแล้ว';
+             btn.innerText = '✅ ส่งงานเรียบร้อยแล้ว';
              btn.classList.replace('btn-primary', 'btn-success');
+             // ซ่อน input file ทันทีหลังส่งเสร็จ
+             const input = document.getElementById('file_'+id);
+             if(input) input.style.display = 'none';
           }).saveLog({
              taskID: id,
              department: dept,
