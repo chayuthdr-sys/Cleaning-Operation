@@ -56,12 +56,13 @@
       }
 
       tasks.forEach(task => {
-        // ตรวจสอบสถานะ isDone
+        // ตรวจสอบสถานะต่างๆ
         const isDone = task.isDone;
+        const isStaffReady = task.isStaffReady; // [NEW] รับค่าสถานะจาก Staff
         
         // กำหนด Class และ Text ของปุ่มตามสถานะ
         const btnClass = isDone ? 'btn-success' : 'btn-primary';
-        const btnText = isDone ? '✅ ส่งงานเรียบร้อยแล้ว' : 'บันทึก';
+        const btnText = isDone ? '✅ ส่งงานเรียบร้อยแล้ว' : 'บันทึกตรวจสอบ';
         // ถ้าเสร็จแล้ว ให้ disable ปุ่ม
         const btnDisabled = isDone ? 'disabled' : 'disabled'; // (เริ่มต้น disable รอรูปถ่าย)
         // ถ้าเสร็จแล้ว ซ่อน input file
@@ -70,20 +71,29 @@
         const cardClass = isDone ? 'border-success' : '';
         const bgClass = isDone ? 'bg-opacity-10 bg-success' : 'bg-white';
 
+        // [NEW] สร้าง Badge แจ้งเตือนสถานะ
+        let statusBadge = '';
+        if (isDone) {
+            statusBadge = '<span class="badge bg-success mt-1">เสร็จแล้ว</span>';
+        } else if (isStaffReady) {
+            // Staff ทำเสร็จแล้ว รอตรวจ
+            statusBadge = '<span class="badge bg-warning text-dark mt-1 border border-dark">🧹 รอตรวจสอบ</span>';
+        }
+
         const html = `
           <div class="card card-task p-3 ${cardClass} ${bgClass}">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="m-0 fw-bold">${task.location}</h6>
                 <span class="badge bg-info text-dark mt-1">${task.department}</span>
-                ${isDone ? '<span class="badge bg-success mt-1">เสร็จแล้ว</span>' : ''}
+                ${statusBadge}
               </div>
               <span class="badge bg-light text-dark border">${task.taskID}</span>
             </div>
             
             <div class="row g-2 mb-3">
               <div class="col-6 text-center">
-                <small class="d-block mb-1">ตัวอย่าง</small>
+                <small class="d-block mb-1">มาตรฐาน</small>
                 <img src="${task.stdImg}" class="img-preview" onclick="window.open(this.src)">
               </div>
               
@@ -188,12 +198,15 @@
           cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
           
           google.script.run.withSuccessHandler(() => {
-             alert('✅ บันทึกสำเร็จ');
+             alert('✅ บันทึกตรวจสอบสำเร็จ');
              btn.innerText = '✅ ส่งงานเรียบร้อยแล้ว';
              btn.classList.replace('btn-primary', 'btn-success');
              // ซ่อน input file ทันทีหลังส่งเสร็จ
              const input = document.getElementById('file_'+id);
              if(input) input.style.display = 'none';
+             
+             // [Optional] ซ่อนป้ายรอตรวจสอบ (ถ้าต้องการให้หายไปทันที)
+             // แต่ปกติเราปล่อยไว้หรือ Reload หน้าเอาก็ได้
           }).saveLog({
              taskID: id,
              department: dept,
