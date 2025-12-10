@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; font-family: 'Sarabun', sans-serif; }
+    .status-done { background-color: #d1e7dd; color: #0f5132; } /* สีเขียวเมื่อเสร็จ */
+    .btn-action { width: 150px; }
+  </style>
+</head>
+<body>
+  <div class="container mt-5">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">🧹 แบบฟอร์มแจ้งทำความสะอาด (Staff)</h4>
+        <button class="btn btn-sm btn-light" onclick="loadData()">🔄 Refresh</button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">โปรดกดปุ่ม <strong>"แจ้งทำเสร็จ"</strong> เมื่อท่านทำความสะอาดจุดนั้นเรียบร้อยแล้ว เพื่อให้หัวหน้างานเข้ามาตรวจสอบ</p>
+        
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 50%">จุดทำความสะอาด (Location)</th>
+                <th style="width: 20%">แผนก</th>
+                <th style="width: 30%">สถานะการทำงาน</th>
+              </tr>
+            </thead>
+            <tbody id="taskList">
+              <tr><td colspan="3" class="text-center">กำลังโหลดข้อมูล...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = loadData;
+
+    function loadData() {
+      google.script.run.withSuccessHandler(renderTable).getStandardsData();
+    }
+
+    function renderTable(tasks) {
+      const tbody = document.getElementById('taskList');
+      tbody.innerHTML = '';
+
+      if (tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">ไม่พบรายการงานของแผนกคุณ</td></tr>';
+        return;
+      }
+
+      tasks.forEach(task => {
+        // เช็คสถานะ
+        const isFinished = task.isStaffReady || task.isDone;
+        // เปลี่ยนสีแถว: ถ้า Staff กดแล้ว (isStaffReady) ให้เป็นสีเขียวอ่อนเลย
+        const rowClass = isFinished ? 'table-success' : '';
+        
+        let btnHtml = '';
+        if (task.isDone) {
+            // Worker ตรวจจบแล้ว
+            btnHtml = '<span class="badge bg-success">✔ ปิดงานเรียบร้อย</span><br><small class="text-muted">(ตรวจสอบแล้ว)</small>';
+        } else if (task.isStaffReady) {
+            // [แก้ไขตรงนี้] Staff กดแล้ว -> ขึ้นสีเขียวชัดเจน
+            btnHtml = `
+              <button class="btn btn-success btn-action disabled">
+                 ✅ ดำเนินการเสร็จสิ้น
+              </button>
+              <div class="small text-muted mt-1">รอหัวหน้าตรวจสอบ</div>
+            `;
+        } else {
+            // ยังไม่ทำ
+            btnHtml = `<button id="btn_${task.taskID}" class="btn btn-primary btn-action" onclick="submitWork('${task.taskID}', '${task.location}', '${task.department}')">แจ้งทำเสร็จ</button>`;
+        }
+
+        const html = `
+          <tr class="${rowClass}">
+            <td>
+              <strong>${task.location}</strong><br>
+              <small class="text-muted">${task.desc}</small>
+            </td>
+            <td><span class="badge bg-info text-dark">${task.department}</span></td>
+            <td class="text-center align-middle">${btnHtml}</td>
+          </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function submitWork(id, loc, dept) {
+      if(!confirm('ยืนยันว่าทำความสะอาด "' + loc + '" เรียบร้อยแล้ว?')) return;
+
+      const btn = document.getElementById('btn_' + id);
+      btn.disabled = true;
+      btn.innerText = 'กำลังบันทึก...';
+
+      google.script.run.withSuccessHandler(() => {
+        loadData(); // โหลดข้อมูลใหม่เพื่ออัปเดตสถานะ
+      }).saveStaffLog(id, loc, dept);
+    }
+  </script>
+</body>
+</html>
